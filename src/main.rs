@@ -1,13 +1,18 @@
 //WDGTR
 //NCWH
-use bevy::prelude::*;
+use bevy::{
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    prelude::*,
+};
 
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .init_resource::<ButtonMaterials>()
         .add_startup_system(setup.system())
         .add_system(button_system.system())
+        .add_system(text_update_system.system())
         .run();
 }
 
@@ -16,6 +21,12 @@ struct ButtonMaterials {
     hovered: Handle<ColorMaterial>,
     pressed: Handle<ColorMaterial>,
 }
+
+// A unit struct to help identify the FPS UI component, since there may be many Text components
+struct FpsText;
+
+// A unit struct to help identify the color-changing Text component
+struct ColorText;
 
 impl FromWorld for ButtonMaterials {
     fn from_world(world: &mut World) -> Self {
@@ -63,11 +74,40 @@ fn setup(
     // ui camera
     commands.spawn_bundle(UiCameraBundle::default());
     commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                align_self: AlignSelf::Center,
+                position: Rect {
+                    bottom: Val::Px(5.0),
+                    right: Val::Px(150.0),
+                    left: Val::Px(500.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            // Use the `Text::with_section` constructor
+            text: Text::with_section(
+                // Accepts a `String` or any type that converts into a `String`, such as `&str`
+                "Cartographer",
+                TextStyle {
+                    font: asset_server.load("fonts/Roboto-Light.ttf"),
+                    font_size: 100.0,
+                    color: Color::WHITE,
+                },
+                // Note: You can use `Default::default()` in place of the `TextAlignment`
+                TextAlignment {
+                    horizontal: HorizontalAlign::Center,
+                    vertical: VerticalAlign::Center,
+                    ..Default::default()
+                },
+            ),
+            ..Default::default()
+        })
+        .insert(ColorText);
+    commands
         .spawn_bundle(ButtonBundle {
             style: Style {
                 size: Size::new(Val::Px(150.0), Val::Px(65.0)),
-                // center button
-                margin: Rect::all(Val::Auto),
                 // horizontally center child text
                 justify_content: JustifyContent::Center,
                 // vertically center child text
@@ -92,5 +132,17 @@ fn setup(
             });
         });
 }
+
+fn text_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
+    for mut text in query.iter_mut() {
+        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(average) = fps.average() {
+                // Update the value of the second section
+                text.sections[1].value = format!("{:.2}", average);
+            }
+        }
+    }
+}
+
 
 
