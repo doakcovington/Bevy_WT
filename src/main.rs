@@ -13,7 +13,14 @@ fn main() {
         .add_startup_system(setup.system())
         .add_system(button_system.system())
         .add_system(text_update_system.system())
+        .add_state(AppState::Menu)
         .run();
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+enum AppState {
+    Menu,
+    InGame,
 }
 
 struct ButtonMaterials {
