@@ -23,6 +23,10 @@ enum AppState {
     InGame,
 }
 
+struct MenuData {
+    button_entity: Entity,
+}
+
 struct ButtonMaterials {
     normal: Handle<ColorMaterial>,
     hovered: Handle<ColorMaterial>,
