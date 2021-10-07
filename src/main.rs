@@ -8,14 +8,20 @@ use bevy::{
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .init_resource::<ButtonMaterials>()
-        .add_startup_system(setup.system())
-        .add_system(button_system.system())
-        .add_system(text_update_system.system())
         .add_state(AppState::Menu)
+        .add_system_set(SystemSet::on_enter(AppState::Menu).with_system(setup_menu.system()))
+        .add_system_set(SystemSet::on_update(AppState::Menu).with_system(menu.system()))
+        .add_system_set(SystemSet::on_exit(AppState::Menu).with_system(cleanup_menu.system()))
+        .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup_game.system()))
+        .add_system_set(
+            SystemSet::on_update(AppState::InGame)
+                .with_system(movement.system())
+                .with_system(change_color.system()),
+        )
         .run();
 }
+
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum AppState {
@@ -38,17 +44,6 @@ struct FpsText;
 
 // A unit struct to help identify the color-changing Text component
 struct ColorText;
-
-impl FromWorld for ButtonMaterials {
-    fn from_world(world: &mut World) -> Self {
-        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
-        ButtonMaterials {
-            normal: materials.add(Color::rgb(0.15, 0.15, 0.15).into()),
-            hovered: materials.add(Color::rgb(0.25, 0.25, 0.25).into()),
-            pressed: materials.add(Color::rgb(0.35, 0.75, 0.35).into()),
-        }
-    }
-}
 
 fn button_system(
     button_materials: Res<ButtonMaterials>,
@@ -77,48 +72,19 @@ fn button_system(
     }
 }
 
-fn setup(
+fn setup_menu(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     button_materials: Res<ButtonMaterials>,
 ) {
     // ui camera
     commands.spawn_bundle(UiCameraBundle::default());
-    commands
-        .spawn_bundle(TextBundle {
-            style: Style {
-                align_self: AlignSelf::Center,
-                position: Rect {
-                    bottom: Val::Px(5.0),
-                    right: Val::Px(150.0),
-                    left: Val::Px(500.0),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            // Use the `Text::with_section` constructor
-            text: Text::with_section(
-                // Accepts a `String` or any type that converts into a `String`, such as `&str`
-                "Cartographer",
-                TextStyle {
-                    font: asset_server.load("fonts/Roboto-Light.ttf"),
-                    font_size: 100.0,
-                    color: Color::WHITE,
-                },
-                // Note: You can use `Default::default()` in place of the `TextAlignment`
-                TextAlignment {
-                    horizontal: HorizontalAlign::Center,
-                    vertical: VerticalAlign::Center,
-                    ..Default::default()
-                },
-            ),
-            ..Default::default()
-        })
-        .insert(ColorText);
-    commands
+    let button_entity = commands
         .spawn_bundle(ButtonBundle {
             style: Style {
                 size: Size::new(Val::Px(150.0), Val::Px(65.0)),
+                // center button
+                margin: Rect::all(Val::Auto),
                 // horizontally center child text
                 justify_content: JustifyContent::Center,
                 // vertically center child text
@@ -131,9 +97,9 @@ fn setup(
         .with_children(|parent| {
             parent.spawn_bundle(TextBundle {
                 text: Text::with_section(
-                    "Button",
+                    "Play",
                     TextStyle {
-                        font: asset_server.load("fonts/Roboto-Light.ttf"),
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                         font_size: 40.0,
                         color: Color::rgb(0.9, 0.9, 0.9),
                     },
@@ -141,7 +107,9 @@ fn setup(
                 ),
                 ..Default::default()
             });
-        });
+        })
+        .id();
+    commands.insert_resource(MenuData { button_entity });
 }
 
 fn menu (
@@ -167,13 +135,70 @@ fn menu (
     }
 }
 
-fn text_update_system(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
-    for mut text in query.iter_mut() {
-        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-            if let Some(average) = fps.average() {
-                // Update the value of the second section
-                text.sections[1].value = format!("{:.2}", average);
-            }
+fn cleanup_menu(mut commands: Commands, menu_data: Res<MenuData>) {
+    commands.entity(menu_data.button_entity).despawn_recursive();
+}
+
+fn setup_game(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let texture_handle = asset_server.load("Images/tux.png");
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(SpriteBundle {
+        material: materials.add(texture_handle.into()),
+        ..Default::default()
+    });
+}
+
+const SPEED: f32 = 100.0;
+fn movement(
+    time: Res<Time>,
+    input: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Sprite>>,
+) {
+    for mut transform in query.iter_mut() {
+        let mut direction = Vec3::ZERO;
+        if input.pressed(KeyCode::Left) {
+            direction.x += 1.0;
+        }
+        if input.pressed(KeyCode::Right) {
+            direction.x -= 1.0;
+        }
+        if input.pressed(KeyCode::Up) {
+            direction.y += 1.0;
+        }
+        if input.pressed(KeyCode::Down) {
+            direction.y -= 1.0;
+        }
+
+        if direction != Vec3::ZERO {
+            transform.translation += direction.normalize() * SPEED * time.delta_seconds();
+        }
+    }
+}
+
+fn change_color(
+    time: Res<Time>,
+    mut assets: ResMut<Assets<ColorMaterial>>,
+    query: Query<&Handle<ColorMaterial>, With<Sprite>>,
+) {
+    for handle in query.iter() {
+        let material = assets.get_mut(handle).unwrap();
+        material
+            .color
+            .set_b((time.seconds_since_startup() * 5.0).sin() as f32 + 2.0);
+    }
+}
+
+impl FromWorld for ButtonMaterials {
+    fn from_world(world: &mut World) -> Self {
+        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
+        ButtonMaterials {
+            normal: materials.add(Color::rgb(0.15, 0.15, 0.15).into()),
+            hovered: materials.add(Color::rgb(0.25, 0.25, 0.25).into()),
+            pressed: materials.add(Color::rgb(0.35, 0.75, 0.35).into()),
         }
     }
 }
