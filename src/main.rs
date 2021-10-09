@@ -1,7 +1,6 @@
-mod tilemap;
-
 //WDGTR
 //NCWH
+mod tilemap;
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
