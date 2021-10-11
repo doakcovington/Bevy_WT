@@ -16,7 +16,7 @@ fn startup(
 
     // Create map entity and component
     let map_entity = commands.spawn().id();
-    let mut map = Map::new(0u16, map_entity);
+    let mut map = TileMap::new(0u16, map_entity);
 
     // Creates a new layer builder with a layer entity
     let (mut layer_builder, _) = LayerBuilder::new(
@@ -31,5 +31,41 @@ fn startup(
         0u16,
         None
     );
+
     layer_builder.set_all(TileBundle::default());
+
+    // Builds the layer
+    // Note: Once this is called you can no longer edit the layer until a hard sync in bevy
+    let layer_entity = map_query.build_layer(&mut commands, layer_builder, material_handle);
+
+    // Required to keep track of layers for a map internally
+    map.add_layer(&mut commands, 0u16, layer_entity);
+
+    // Spawn map
+    // Required in order to use map_query to retrieve layers/tiles
+    commands
+        .entity(map_entity)
+        .insert(map)
+        .insert(Transform::from_xyz(-128.0, -128.0, 0.0))
+        .insert(GlobalTransform::default());
+}
+
+fn main() {
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFIlter::Info)
+        .init()
+
+    App::build()
+        .insert_resource(WindowDescriptor {
+            width: 1270.0,
+            height: 720.0,
+            title: String::from("Cartographer"),
+            ..Default::default()
+        })
+        .add_plugins(DefaultPlugins)
+        .add_plugins(TilemapPlugin)
+        .add_startup_system(startup.system())
+        .add_system(helpers::camera::movement.system())
+        .add_system(helpers::texture::set_texture_filters_to_nearest.system())
+        .run();
 }
