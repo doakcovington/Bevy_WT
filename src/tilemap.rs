@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_ecs_tilemap::prelude::*;
 
 mod helpers;
 
@@ -53,7 +52,7 @@ fn startup(
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFIlter::Info)
-        .init()
+        .init();
 
     App::build()
         .insert_resource(WindowDescriptor {
