@@ -2,9 +2,6 @@
 //NCWH
 //41-38
 
-mod tilemap;
-mod map;
-
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
