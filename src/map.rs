@@ -1,99 +1,70 @@
-use crate::layer::LayerId;
 use bevy::prelude::*;
-use std::hash::Hash;
-use std::{Collections::HashMap, vec::IntoIter};
+use bevy_ecs_tilemap::prelude::*;
 
-#[derive(Clone)]
-pub struct Map {
-    pub map_entity: Entity,
-    pub id: u16,
-    pub(crate) layers: HashMap<u16, Entity>,
+mod helpers;
+
+fn startup(
+    mut commands: Commands,
+    asset_server: Res<AssestServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut map_query: MapQuery,
+) {
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+
+    let texture_handle = asset_server.load("tiles.png");
+    let material_handle = materials.add(ColorMaterial::texture(texture_handle));
+
+    // Create map entity and component
+    let map_entity = commands.spawn().id();
+    let mut map = Map::new(0u16, map_entity);
+
+    // Creates a new layer builder with a layer entity
+    let (mut layer_builder, _) = LayerBuilder::new(
+        &mut commands,
+        LayerSettings::new(
+            MapSize(2,2),
+            ChunkSize(8,8),
+            TileSize(16.0, 16.0),
+            TextureSize(96.0,16.0),
+        ),
+        0u16,
+        0u16,
+    );
+
+    layer_builder.set_all(TileBundle::default());
+
+    // Builds the layer
+    // Note: Once this is called you can no longer edit the layer until a hard sync in bevy
+    let layer_entity = map_query.build_layer(&mut commands, layer_builder, material_handle);
+
+    // Required to keep track of layers for a map internally
+    map.add_layer(&mut commands, 0u16, layer_entity);
+
+    // Spawn map
+    // Required in order to use map_query to retrieve layers/tiles
+    commands
+        .entity(map_entity)
+        .insert(map)
+        .insert(Transform::from_xyz(-128.0, -128.0, 0.0))
+        .insert(GlobalTransform::default());
 }
 
-impl Default for Map {
-    fn default() -> Self {
-        Self {
-            map_entity: Entity::new(0),
-            id: 0,
-            layers: HashMap::new(),
-        }
-    }
-}
-
-impl Map {
-    // Creates new map component
-    pub fn new(id: impl MapId, map_entity: Entity) -> Self {
-        Self {
-            map_entity,
-            id: id.into(),
-            layers: Hash::new(),
-        }
-    }
-
-    // Creates new layer
-    pub fn add_layer(
-        &mut self,
-        commands: &mut Commands,
-        layer_id: impl LayerId,
-        layer_entity: Entity,
-    ) {
-        commands
-            .entity(self.map_entity)
-            .push_children(&[layer_entity]);
-        self.layers.insert(layer_id.into(), layer_entity);
-    }
-
-
-    /// Adds multiple layers to the map.
-    pub fn add_layers(
-        &mut self,
-        commands: &mut Commands,
-        layers: IntoIter<(impl LayerId, Entity)>,
-    ) {
-        let layers: Vec<(u16, Entity)> = layers.map(|(id, entity)| (id.into(), entity)).collect();
-        let entities: Vec<Entity> = layers.iter().map(|(_, entity)| *entity).collect();
-        self.layers.extend(layers);
-        commands.entity(self.map_entity).push_children(&entities);
-    }
-
-    /// Removes the layer from the map and despawns the layer entity.
-    /// Note: Does not despawn the tile entities. Please use MapQuery instead.
-    pub fn remove_layer(&mut self, commands: &mut Commands, layer_id: impl LayerId) {
-        if let Some(layer_entity) = self.layers.remove(&layer_id.into()) {
-            commands.entity(layer_entity).despawn_recursive();
-        }
-    }
-
-    /// Removes the layers from the map and despawns the layer entities.
-    /// Note: Does not despawn the tile entities. Please use MapQuery instead.
-    pub fn remove_layers(&mut self, commands: &mut Commands, layers: IntoIter<impl LayerId>) {
-        layers.for_each(|id| {
-            let id: u16 = id.into();
-            self.remove_layer(commands, id);
-        });
-    }
-
-    /// Retrieves the entity for a given layer id.
-    pub fn get_layer_entity(&self, layer_id: impl LayerId) -> Option<&Entity> {
-        self.layers.get(&layer_id.into())
-    }
-
-    /// Despawns a map. Better to call `map_query.despawn_map` as it will despawn layers/tiles as well.
-    pub fn despawn(&self, commands: &mut Commands) {
-        commands.entity(self.map_entity).despawn_recursive();
-    }
-
-    pub fn get_layers(&self) -> Vec<(u16, Entity)> {
-        self.layers
-            .iter()
-            .map(|(key, value)| (*key, *value))
-            .collect()
-    }
-}
-/// A type that can be used to identify which map a tile is in.
-///
-/// These are ultimately converted to u16; if you're using more than one type with this trait in your game,
-/// ensure that their u16 conversions do not unintentionally overlap.
-pub trait MapId: Clone + Copy + PartialEq + Eq + Hash + Into<u16> {}
-
-impl MapId for u16 {}
+// fn main() {
+//     env_logger::Builder::from_default_env()
+//         .filter_level(log::LevelFIlter::Info)
+//         .init();
+//
+//     App::build()
+//         .insert_resource(WindowDescriptor {
+//             width: 1270.0,
+//             height: 720.0,
+//             title: String::from("Cartographer"),
+//             ..Default::default()
+//         })
+//         .add_plugins(DefaultPlugins)
+//         .add_plugins(TilemapPlugin)
+//         .add_startup_system(startup.system())
+//         .add_system(helpers::camera::movement.system())
+//         .add_system(helpers::texture::set_texture_filters_to_nearest.system())
+//         .run();
+// }

@@ -2,6 +2,8 @@
 //NCWH
 //41-38
 
+mod map;
+
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
