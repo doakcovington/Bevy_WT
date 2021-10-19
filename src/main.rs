@@ -2,12 +2,11 @@
 //NCWH
 //41-38
 
-mod map;
-
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
-    prelude::*,
+    prelude::*, asset::HandleId,
 };
+use bevy_tilemap::prelude::*;
 
 fn main() {
     App::build()
@@ -194,6 +193,35 @@ fn change_color(
             .color
             .set_b((time.seconds_since_startup() * 5.0).sin() as f32 + 2.0);
     }
+}
+
+fn tile_map() {
+    // Build a default Tilemap with 32x32 pixel tiles.
+    let mut tilemap = Tilemap::default();
+
+    // We need a Asset<TextureAtlas>. For this example we get a random one as a placeholder.
+    let texture_atlas_handle = Handle::weak(HandleId::random::<TextureAtlas>());
+
+    // Set the texture atlas for the Tilemap
+    tilemap.set_texture_atlas(texture_atlas_handle);
+
+    // Create tile data
+    let tile = Tile {
+        // 2D location x,y (units are in tiles)
+        point: (16,16),
+
+        // Which tile from the TextureAtlas
+        sprite_index: 0,
+
+        // Which z-layer in the Tilemap (0-up)
+        sprite_order: 0,
+
+        // Give the tile an optional green tint
+        tint: bevy::render::color::Color::GREEN,
+    };
+
+    // Insert a single tile
+    tilemap.insert_tile( tile);
 }
 
 impl FromWorld for ButtonMaterials {
